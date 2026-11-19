@@ -47,7 +47,7 @@ class _DownloaderHomeState extends State<DownloaderHome> {
   Uri? _platformUri;
 
   String? _platformForHost(String host) {
-    final h = host.toLowerCase().replaceFirst(RegExp(r'^www\\.'), '');
+    final h = host.toLowerCase().replaceFirst('www.', '');
     if (h == 'facebook.com' || h.endsWith('.facebook.com') || h == 'fb.watch') return 'Facebook';
     if (h == 'instagram.com' || h.endsWith('.instagram.com')) return 'Instagram';
     if (h == 'tiktok.com' || h.endsWith('.tiktok.com') || h == 'vm.tiktok.com') return 'TikTok';
@@ -57,7 +57,8 @@ class _DownloaderHomeState extends State<DownloaderHome> {
   }
 
   void _analyzeLink() {
-    final raw = _urlController.text.trim();
+    var raw = _urlController.text.trim();
+    if (raw.isNotEmpty && !raw.contains('://')) raw = 'https://$raw';
     final uri = Uri.tryParse(raw);
     if (uri == null || !uri.hasScheme || (uri.scheme != 'http' && uri.scheme != 'https') || uri.host.isEmpty) {
       setState(() { _detectedPlatform = null; _platformUri = null; _platformHelp = 'Enter a valid website link first.'; });
@@ -81,7 +82,8 @@ class _DownloaderHomeState extends State<DownloaderHome> {
   }
 
   Future<void> _download() async {
-    final url = _urlController.text.trim();
+    var url = _urlController.text.trim();
+    if (url.isNotEmpty && !url.contains('://')) url = 'https://$url';
     final uri = Uri.tryParse(url);
     if (uri == null || !uri.hasScheme ||
         (uri.scheme != 'http' && uri.scheme != 'https') ||
@@ -107,7 +109,7 @@ class _DownloaderHomeState extends State<DownloaderHome> {
       name = name.replaceAll(RegExp(r'[^a-zA-Z0-9._-]'), '_');
       final filePath = '${dir.path}/$name';
 
-      await _dio.download(
+      final response = await _dio.download(
         url,
         filePath,
         cancelToken: _cancelToken,
@@ -122,6 +124,12 @@ class _DownloaderHomeState extends State<DownloaderHome> {
           });
         },
       );
+      final contentType = response.headers.value(Headers.contentTypeHeader) ?? '';
+      if (contentType.toLowerCase().contains('text/html')) {
+        final partial = File(filePath);
+        if (await partial.exists()) await partial.delete();
+        throw Exception('This link opened a web page, not a direct media file. Social-media page links cannot be downloaded by this direct-link feature.');
+      }
       if (!mounted) return;
       setState(() {
         _savedPath = filePath;
@@ -135,7 +143,7 @@ class _DownloaderHomeState extends State<DownloaderHome> {
           : 'Download failed: ${e.message ?? 'Connection error'}');
     } catch (e) {
       if (!mounted) return;
-      setState(() => _status = 'Error: $e');
+      setState(() => _status = 'Download could not complete: $e');
     } finally {
       if (mounted) setState(() => _downloading = false);
       _cancelToken = null;
