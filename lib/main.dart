@@ -107,7 +107,7 @@ class _DownloaderHomeState extends State<DownloaderHome> {
       }
       final type = response.headers.value(Headers.contentTypeHeader) ?? '';
       final size = response.headers.value(Headers.contentLengthHeader) ?? '';
-      final disposition = response.headers.value(Headers.contentDispositionHeader) ?? '';
+      final disposition = response.headers.value('content-disposition') ?? '';
       final isMedia = type.toLowerCase().startsWith('video/') ||
           type.toLowerCase().startsWith('audio/') ||
           type.toLowerCase().contains('application/octet-stream');
