@@ -57,23 +57,76 @@ class _DownloaderHomeState extends State<DownloaderHome> {
     return null;
   }
 
-  void _analyzeLink() {
+  Future<void> _analyzeLink() async {
     var raw = _urlController.text.trim();
     if (raw.isNotEmpty && !raw.contains('://')) raw = 'https://$raw';
     final uri = Uri.tryParse(raw);
-    if (uri == null || !uri.hasScheme || (uri.scheme != 'http' && uri.scheme != 'https') || uri.host.isEmpty) {
-      setState(() { _detectedPlatform = null; _platformUri = null; _platformHelp = 'Enter a valid website link first.'; });
+    if (uri == null || !uri.hasScheme ||
+        (uri.scheme != 'http' && uri.scheme != 'https') || uri.host.isEmpty) {
+      setState(() {
+        _detectedPlatform = null;
+        _platformUri = null;
+        _platformHelp = 'Enter a valid HTTP or HTTPS link.';
+        _status = 'Invalid link.';
+      });
       return;
     }
+
     final platform = _platformForHost(uri.host);
     setState(() {
-      _detectedPlatform = platform ?? 'Direct link / Other website';
+      _detectedPlatform = platform ?? 'Checking direct media link...';
       _platformUri = uri;
-      _platformHelp = platform == null
-          ? 'If this is a direct media or file URL, use Start Download. Website pages may not provide a downloadable file.'
-          : '$platform link detected. Use the platform\'s official download or sharing options where available. This app will not bypass login, DRM, or platform restrictions.';
-      _status = platform == null ? 'Link analyzed.' : '$platform link detected. Direct page extraction is not available.';
+      _platformHelp = platform == null ? 'Checking whether this URL is a direct media file...' :
+        '$platform link recognized. This is a platform page link, not a verified media file. This app currently cannot extract media streams from platform pages. Use the platform-provided download/export feature where available.';
+      _status = 'Analyzing link...';
     });
+
+    if (platform != null) {
+      if (!mounted) return;
+      setState(() => _status = '$platform page recognized; direct media stream is not available from this link.');
+      return;
+    }
+
+    try {
+      Response response;
+      try {
+        response = await _dio.head(
+          uri.toString(),
+          options: Options(followRedirects: true, receiveTimeout: const Duration(seconds: 12)),
+        );
+      } on DioException {
+        response = await _dio.get(
+          uri.toString(),
+          options: Options(
+            headers: {'Range': 'bytes=0-0'},
+            responseType: ResponseType.bytes,
+            followRedirects: true,
+            receiveTimeout: const Duration(seconds: 12),
+          ),
+        );
+      }
+      final type = response.headers.value(Headers.contentTypeHeader) ?? '';
+      final size = response.headers.value(Headers.contentLengthHeader) ?? '';
+      final disposition = response.headers.value(Headers.contentDispositionHeader) ?? '';
+      final isMedia = type.toLowerCase().startsWith('video/') ||
+          type.toLowerCase().startsWith('audio/') ||
+          type.toLowerCase().contains('application/octet-stream');
+      if (!mounted) return;
+      setState(() {
+        _detectedPlatform = isMedia ? 'Direct media file' : 'Website / unsupported response';
+        _platformHelp = isMedia
+            ? 'Direct file detected. Type: $type${size.isNotEmpty ? ' • Size: $size bytes' : ''}${disposition.isNotEmpty ? ' • $disposition' : ''}. Available quality depends on the source file.'
+            : 'The server did not identify this URL as a direct video/audio file (Content-Type: ${type.isEmpty ? 'unknown' : type}). A webpage link cannot be downloaded as a media file.';
+        _status = isMedia ? 'Direct media link verified.' : 'No direct media file found at this URL.';
+      });
+    } on DioException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _detectedPlatform = 'Link check failed';
+        _platformHelp = 'Could not verify this link: ${e.message ?? 'server unavailable'}. The server may block link inspection or require access.';
+        _status = 'Could not analyze link.';
+      });
+    }
   }
 
   Future<void> _openPlatform() async {
@@ -232,7 +285,7 @@ class _DownloaderHomeState extends State<DownloaderHome> {
                   controller: _urlController,
                   keyboardType: TextInputType.url,
                   decoration: InputDecoration(
-                    hintText: 'Paste direct video or file link',
+                    hintText: 'Paste a video, file, or supported platform link',
                     prefixIcon: const Icon(Icons.link_rounded),
                     filled: true,
                     fillColor: const Color(0xFF0B1020),
