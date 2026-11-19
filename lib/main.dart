@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 void main() => runApp(const VideoDownloaderApp());
 
@@ -41,6 +42,43 @@ class _DownloaderHomeState extends State<DownloaderHome> {
   bool _downloading = false;
   String _status = 'Paste a direct video or file URL to get started.';
   String? _savedPath;
+  String? _detectedPlatform;
+  String? _platformHelp;
+  Uri? _platformUri;
+
+  String? _platformForHost(String host) {
+    final h = host.toLowerCase().replaceFirst(RegExp(r'^www\\.'), '');
+    if (h == 'facebook.com' || h.endsWith('.facebook.com') || h == 'fb.watch') return 'Facebook';
+    if (h == 'instagram.com' || h.endsWith('.instagram.com')) return 'Instagram';
+    if (h == 'tiktok.com' || h.endsWith('.tiktok.com') || h == 'vm.tiktok.com') return 'TikTok';
+    if (h == 'x.com' || h.endsWith('.x.com') || h == 'twitter.com' || h.endsWith('.twitter.com')) return 'X (Twitter)';
+    if (h == 'vimeo.com' || h.endsWith('.vimeo.com')) return 'Vimeo';
+    return null;
+  }
+
+  void _analyzeLink() {
+    final raw = _urlController.text.trim();
+    final uri = Uri.tryParse(raw);
+    if (uri == null || !uri.hasScheme || (uri.scheme != 'http' && uri.scheme != 'https') || uri.host.isEmpty) {
+      setState(() { _detectedPlatform = null; _platformUri = null; _platformHelp = 'Enter a valid website link first.'; });
+      return;
+    }
+    final platform = _platformForHost(uri.host);
+    setState(() {
+      _detectedPlatform = platform ?? 'Direct link / Other website';
+      _platformUri = uri;
+      _platformHelp = platform == null
+          ? 'If this is a direct media or file URL, use Start Download. Website pages may not provide a downloadable file.'
+          : '$platform link detected. Use the platform\'s official download or sharing options where available. This app will not bypass login, DRM, or platform restrictions.';
+      _status = platform == null ? 'Link analyzed.' : '$platform link detected. Direct page extraction is not available.';
+    });
+  }
+
+  Future<void> _openPlatform() async {
+    final uri = _platformUri;
+    if (uri == null) return;
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
+  }
 
   Future<void> _download() async {
     final url = _urlController.text.trim();
@@ -195,7 +233,16 @@ class _DownloaderHomeState extends State<DownloaderHome> {
                     ),
                   ),
                 ),
-                const SizedBox(height: 14),
+                const SizedBox(height: 10),
+                SizedBox(
+                  width: double.infinity, height: 46,
+                  child: OutlinedButton.icon(
+                    onPressed: _analyzeLink,
+                    icon: const Icon(Icons.travel_explore_rounded),
+                    label: const Text('ANALYZE LINK'),
+                  ),
+                ),
+                const SizedBox(height: 10),
                 SizedBox(
                   width: double.infinity, height: 54,
                   child: FilledButton.icon(
@@ -212,6 +259,22 @@ class _DownloaderHomeState extends State<DownloaderHome> {
                 ),
               ]),
             ),
+            if (_platformHelp != null) ...[
+              const SizedBox(height: 14),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(color: const Color(0xFF151D30), borderRadius: BorderRadius.circular(18), border: Border.all(color: const Color(0xFF8C75FF).withValues(alpha: .25))),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Row(children: [const Icon(Icons.public_rounded, color: Color(0xFFAA98FF)), const SizedBox(width: 8), Expanded(child: Text(_detectedPlatform ?? 'Link information', style: const TextStyle(fontWeight: FontWeight.w800))) ]),
+                  const SizedBox(height: 8),
+                  Text(_platformHelp!, style: const TextStyle(color: Colors.white70, height: 1.4)),
+                  if (_platformUri != null && _detectedPlatform != 'Direct link / Other website') ...[
+                    const SizedBox(height: 10),
+                    Align(alignment: Alignment.centerRight, child: TextButton.icon(onPressed: _openPlatform, icon: const Icon(Icons.open_in_new), label: const Text('Open official page'))),
+                  ],
+                ]),
+              ),
+            ],
             const SizedBox(height: 22),
             Row(children: [
               _feature(Icons.bolt_rounded, 'Fast', 'Direct transfer'),
@@ -264,8 +327,8 @@ class _DownloaderHomeState extends State<DownloaderHome> {
             ),
             const SizedBox(height: 22),
             Text(
-              'Note: This first version supports direct HTTP/HTTPS file links. '
-              'It does not extract videos from social-media pages or bypass sign-in, '
+              'Note: This version recognizes Facebook, Instagram, TikTok, X (Twitter), and Vimeo links, and supports direct HTTP/HTTPS file downloads. '
+              'Social-media page extraction is not enabled; use official platform download options. It does not bypass sign-in, '
               'DRM, or platform restrictions. Download only content you have permission to save.',
               style: TextStyle(color: Colors.white.withValues(alpha: .45), fontSize: 11, height: 1.5),
             ),
