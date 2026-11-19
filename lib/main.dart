@@ -40,7 +40,7 @@ class _DownloaderHomeState extends State<DownloaderHome> {
   CancelToken? _cancelToken;
   double _progress = 0;
   bool _downloading = false;
-  String _status = 'Paste a direct video or file URL to get started.';
+  String _status = 'Paste a direct media URL or a supported platform link to get started.';
   String? _savedPath;
   String? _detectedPlatform;
   String? _platformHelp;
@@ -49,6 +49,7 @@ class _DownloaderHomeState extends State<DownloaderHome> {
   String? _platformForHost(String host) {
     final h = host.toLowerCase().replaceFirst('www.', '');
     if (h == 'facebook.com' || h.endsWith('.facebook.com') || h == 'fb.watch') return 'Facebook';
+    if (h == 'youtube.com' || h.endsWith('.youtube.com') || h == 'youtu.be' || h.endsWith('.youtube-nocookie.com')) return 'YouTube';
     if (h == 'instagram.com' || h.endsWith('.instagram.com')) return 'Instagram';
     if (h == 'tiktok.com' || h.endsWith('.tiktok.com') || h == 'vm.tiktok.com') return 'TikTok';
     if (h == 'x.com' || h.endsWith('.x.com') || h == 'twitter.com' || h.endsWith('.twitter.com')) return 'X (Twitter)';
@@ -76,7 +77,7 @@ class _DownloaderHomeState extends State<DownloaderHome> {
       _detectedPlatform = platform ?? 'Checking direct media link...';
       _platformUri = uri;
       _platformHelp = platform == null ? 'Checking whether this URL is a direct media file...' :
-        '$platform link recognized. This is a platform page link, not a verified media file. This app currently cannot extract media streams from platform pages. Use the platform-provided download/export feature where available.';
+        '$platform link recognized. This is a platform page link, not a verified media file. This app recognizes the platform link but does not extract protected or platform-hosted streams. Use the platform's own download/export feature where available.';
       _status = 'Analyzing link...';
     });
 
@@ -389,8 +390,8 @@ class _DownloaderHomeState extends State<DownloaderHome> {
             ),
             const SizedBox(height: 22),
             Text(
-              'Note: This version recognizes Facebook, Instagram, TikTok, X (Twitter), and Vimeo links, and supports direct HTTP/HTTPS file downloads. '
-              'Social-media page extraction is not enabled; use official platform download options. It does not bypass sign-in, '
+              'Note: This version recognizes YouTube, Facebook, Instagram, TikTok, X (Twitter), and Vimeo links, and supports direct HTTP/HTTPS media-file downloads. '
+              'Platform-page extraction is not enabled; use official platform download options. It does not bypass sign-in, '
               'DRM, or platform restrictions. Download only content you have permission to save.',
               style: TextStyle(color: Colors.white.withValues(alpha: .45), fontSize: 11, height: 1.5),
             ),
