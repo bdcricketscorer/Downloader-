@@ -1,7 +1,6 @@
 import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 void main() => runApp(const VideoDownloaderApp());
@@ -155,7 +154,8 @@ class _DownloaderHomeState extends State<DownloaderHome> {
     _cancelToken = CancelToken();
 
     try {
-      final dir = await getApplicationDocumentsDirectory();
+      final dir = Directory('${Directory.systemTemp.path}/video_downloader');
+      if (!await dir.exists()) await dir.create(recursive: true);
       var name = uri.pathSegments.isNotEmpty ? uri.pathSegments.last : 'download';
       if (name.isEmpty || !name.contains('.')) {
         name = 'video_${DateTime.now().millisecondsSinceEpoch}.mp4';
